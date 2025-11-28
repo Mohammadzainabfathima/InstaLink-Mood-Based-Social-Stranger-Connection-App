@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+databases
+sqlalchemy
+aiofiles
+jinja2
+python-multipart
