@@ -1,0 +1,53 @@
+Crome-file:///C:/Users/Administrator/AppData/Local/Temp/4b76aad7-ceab-495e-a429-e8ebd9c81130_instalink_mood_app.zip.130/static/index.html
+
+
+
+
+instalink.js--
+let ws=null;
+const status = document.getElementById('status');
+const messages = document.getElementById('messages');
+const connectBtn = document.getElementById('connect');
+const sendBtn = document.getElementById('send');
+const leaveBtn = document.getElementById('leave');
+const usernameInput = document.getElementById('username');
+const moodSelect = document.getElementById('mood');
+const chatDiv = document.getElementById('chat');
+const msgInput = document.getElementById('msg');
+
+function addMessage(text, cls='msg'){ const d=document.createElement('div'); d.className=cls; d.innerHTML=text; messages.appendChild(d); messages.scrollTop=messages.scrollHeight; }
+
+connectBtn.addEventListener('click', ()=>{
+  const username = usernameInput.value.trim();
+  if(!username){ alert('Enter username'); return; }
+  const mood = moodSelect.value;
+  // open websocket
+  ws = new WebSocket(`ws://${location.host}/ws/${encodeURIComponent(username)}`);
+  ws.onopen = ()=>{
+    status.innerText = 'Connected. Searching for match...';
+    // register mood via REST (optional)
+    fetch('/api/register', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({username:username, mood:mood})});
+    // send find command
+    ws.send(JSON.stringify({type:'find', mood:mood}));
+  };
+  ws.onmessage = (evt)=>{
+    const payload = JSON.parse(evt.data);
+    if(payload.type==='searching'){ status.innerText = 'No match yet — waiting...'; }
+    else if(payload.type==='matched'){ status.innerText = 'Matched with ' + payload.peer; chatDiv.style.display='block'; addMessage('Matched with '+payload.peer, 'system'); }
+    else if(payload.type==='message'){ addMessage('<strong>'+payload.from+':</strong> '+payload.text); }
+    else if(payload.type==='system'){ addMessage('<em>'+payload.text+'</em>','system'); }
+  };
+  ws.onclose = ()=>{ status.innerText='Disconnected'; chatDiv.style.display='none'; }
+});
+
+sendBtn.addEventListener('click', ()=>{
+  const text = msgInput.value.trim(); if(!text) return;
+  // naive: send to all; server relays to matched peer
+  ws.send(JSON.stringify({type:'message', text:text}));
+  addMessage('<strong>You:</strong> '+text);
+  msgInput.value='';
+});
+
+leaveBtn.addEventListener('click', ()=>{
+  if(ws){ ws.send(JSON.stringify({type:'leave'})); ws.close(); status.innerText='Left the chat'; chatDiv.style.display='none'; }
+});
